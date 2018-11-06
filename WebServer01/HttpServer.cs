@@ -9,7 +9,7 @@ namespace WebServer01
     class HttpServer
     {
         public const String MSG_DIR = "\\root\\msg\\";
-        public const String WEB_DIR = "\\root\\web\\";
+        public const String WEB_DIR = "\\root\\web";
         public const String VERSION = "HTTP/1.0";
         public const String SERVERNAME = "myserv/1.1";
 

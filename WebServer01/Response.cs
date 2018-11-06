@@ -12,11 +12,11 @@ namespace WebServer01
     {
         byte[] data = null;
         string status;
-        string contentType;
+        static string contentType = "";
         public Response(string status, string mime, byte[] data)
         {
+            contentType = mime;
             this.status = status;
-            this.contentType = mime;
             this.data = data;
         }
 
@@ -29,26 +29,16 @@ namespace WebServer01
 
             if (request.Type == "GET")
             {
-                string path = Environment.CurrentDirectory + HttpServer.WEB_DIR + request.Uri;
+                if (request.Uri.EndsWith("/"))
+                {
+                    request.Uri += "index.html";
+                }
+                string path = Environment.CurrentDirectory + HttpServer.WEB_DIR + request.Uri.Replace('/', '\\');
                 FileInfo file = new FileInfo(path);
 
                 if (file.Exists && file.Extension.Contains("."))
                 {
-                    return MakeFrom(file);
-                }
-                else
-                {
-                    DirectoryInfo directory = new DirectoryInfo(file + "\\");
-                    if (!directory.Exists)
-                    {
-                        return OnBadRequest("404.html", "404 Page Not Found");
-                    }
-                    FileInfo[] files = directory.GetFiles();
-                    foreach (FileInfo ff in files)
-                    {
-                        if (ff.Name.Contains("default.html") || ff.Name.Contains("index.html"))
-                            return MakeFrom(ff);
-                    }
+                    return SendFrom(file);
                 }
             }
             else
@@ -58,14 +48,47 @@ namespace WebServer01
             return OnBadRequest("404.html", "404 Page Not Found");
         }
 
-        private static Response MakeFrom(FileInfo file)
+        private static Response SendFrom(FileInfo file)
         {
             FileStream stream = file.OpenRead();
-            Byte[] buf = new Byte[stream.Length];
-            BinaryReader reader = new BinaryReader(stream);
-            reader.Read(buf, 0, buf.Length);
-
-            return new Response("200 OK", "text/html", buf);
+            byte[] buf = new byte[stream.Length];
+            //BinaryReader reader = new BinaryReader(stream);
+            //reader.Read(buf, 0, buf.Length);
+            IAsyncResult asyncResult = stream.BeginRead(buf, 0, buf.Length, new AsyncCallback(Callback), stream);
+            stream.EndRead(asyncResult);
+            //string extension = file.Name.Substring(file.Name.LastIndexOf('.'));
+            switch (file.Extension)
+            {
+                case ".htm":
+                case ".html":
+                    contentType = "text/html";
+                    break;
+                case ".css":
+                    contentType = "text/stylesheet";
+                    break;
+                case ".js":
+                    contentType = "text/javascript";
+                    break;
+                case ".jpg":
+                    contentType = "image/jpeg";
+                    break;
+                case ".jpeg":
+                case ".png":
+                case ".gif":
+                    contentType = "image/" + file.Extension.Substring(1);
+                    break;
+                default:
+                    if (file.Extension.Length > 1)
+                    {
+                        contentType = "application/" + file.Extension.Substring(1);
+                    }
+                    else
+                    {
+                        contentType = "application/unknown";
+                    }
+                    break;
+            }
+            return new Response("200 OK", contentType, buf);
         }
 
         private static Response OnBadRequest(string filename, string status)
@@ -79,7 +102,7 @@ namespace WebServer01
                     data = new byte[stream.Length];
                     stream.Read(data, 0, data.Length);
                 }
-            
+
 
             }
             return new Response(status, "text/html", data);
@@ -100,10 +123,17 @@ namespace WebServer01
                 HttpServer.VERSION, status, HttpServer.SERVERNAME, contentType, data.Length));
             writer.Flush();
             //stream.Write(data, 0, data.Length);
-            stream.BeginWrite(data, 0, data.Length, Callback, stream);
+            try
+            {
+                stream.BeginWrite(data, 0, data.Length, Callback, stream);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
         }
 
-        private void Callback(IAsyncResult ar)
+        private static void Callback(IAsyncResult ar)
         {
             Stream stream = ar.AsyncState as Stream;
             if (stream != null)
